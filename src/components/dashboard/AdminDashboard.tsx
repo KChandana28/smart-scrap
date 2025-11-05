@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Users, Package, DollarSign, TrendingUp, Activity } from 'lucide-react';
@@ -30,7 +30,7 @@ const AdminDashboard = () => {
   });
   const [loading, setLoading] = useState(true);
 
-  const fetchStats = async () => {
+  const fetchStats = useCallback(async () => {
     try {
       // Fetch user stats
       const { data: profiles, error: profilesError } = await supabase
@@ -84,11 +84,11 @@ const AdminDashboard = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [t]);
 
   useEffect(() => {
     fetchStats();
-  }, [t]);
+  }, [fetchStats]);
 
   if (loading) {
     return (

@@ -169,7 +169,7 @@ const PurchaseDialog = ({ open, onOpenChange, item, onSuccess }: PurchaseDialogP
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="sm:max-w-[500px] max-h-[90vh] flex flex-col">
         <DialogHeader>
           <DialogTitle>{t('Purchase Confirmation')}</DialogTitle>
           <DialogDescription>
@@ -177,6 +177,7 @@ const PurchaseDialog = ({ open, onOpenChange, item, onSuccess }: PurchaseDialogP
           </DialogDescription>
         </DialogHeader>
 
+        <div className="overflow-y-auto pr-2 space-y-4" style={{ maxHeight: 'calc(90vh - 180px)', scrollbarWidth: 'thin' }}>
         <Card>
           <CardContent className="p-4">
             {item.image_url && (
@@ -323,6 +324,7 @@ const PurchaseDialog = ({ open, onOpenChange, item, onSuccess }: PurchaseDialogP
               </p>
             </div>
           )}
+        </div>
         </div>
 
         <DialogFooter>

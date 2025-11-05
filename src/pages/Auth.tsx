@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { toast } from '@/hooks/use-toast';
 import { Navigate, useLocation } from 'react-router-dom';
@@ -12,7 +12,7 @@ import { Recycle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { config } from '@/lib/config';
 import TwoFactorVerify from '@/components/auth/TwoFactorVerify';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import AnimatedCard from '@/components/animations/AnimatedCard';
 import AnimatedInput from '@/components/animations/AnimatedInput';
 import AnimatedButton from '@/components/animations/AnimatedButton';
@@ -25,6 +25,9 @@ const Auth = () => {
   const [resetLoading, setResetLoading] = useState(false);
   const [showTwoFactor, setShowTwoFactor] = useState(false);
   const [twoFactorData, setTwoFactorData] = useState<{ factorId: string; challengeId: string } | null>(null);
+  const [isSignUp, setIsSignUp] = useState(false);
+  const [password, setPassword] = useState('');
+  const [showPasswordHints, setShowPasswordHints] = useState(false);
   const location = useLocation();
 
   // Check for OAuth errors in URL
@@ -67,6 +70,29 @@ const Auth = () => {
     return <Navigate to="/dashboard" replace />;
   }
 
+  const validatePassword = (pwd: string) => {
+    const minLength = pwd.length >= 8;
+    const hasUpper = /[A-Z]/.test(pwd);
+    const hasLower = /[a-z]/.test(pwd);
+    const hasNumber = /[0-9]/.test(pwd);
+    const hasSpecial = /[!@#$%^&*(),.?":{}|<>]/.test(pwd);
+    return minLength && hasUpper && hasLower && hasNumber && hasSpecial;
+  };
+
+  const getPasswordStrength = (pwd: string) => {
+    const checks = [
+      pwd.length >= 8,
+      /[A-Z]/.test(pwd),
+      /[a-z]/.test(pwd),
+      /[0-9]/.test(pwd),
+      /[!@#$%^&*(),.?":{}|<>]/.test(pwd)
+    ];
+    const score = checks.filter(Boolean).length;
+    if (score <= 2) return { label: 'Weak', color: 'text-red-600' };
+    if (score <= 4) return { label: 'Medium', color: 'text-yellow-600' };
+    return { label: 'Strong', color: 'text-green-600' };
+  };
+
   const handleSignUp = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setLoading(true);
@@ -87,14 +113,50 @@ const Auth = () => {
       return;
     }
 
+    // Validate password strength
+    if (!validatePassword(password)) {
+      toast({
+        title: 'Weak Password',
+        description: 'Password must meet all security requirements.',
+        variant: 'destructive',
+      });
+      setLoading(false);
+      return;
+    }
+
+    // Try to initiate password reset to check if email exists
+    const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/auth`,
+    });
+
+    // If no error, email exists in the system
+    if (!resetError) {
+      toast({
+        title: 'Email Already Registered',
+        description: 'This email is already registered. Please sign in or use a different email.',
+        variant: 'destructive',
+      });
+      setLoading(false);
+      return;
+    }
+
     const { error } = await signUp(email, password, fullName);
 
     if (error) {
-      toast({
-        title: 'Error',
-        description: error.message,
-        variant: 'destructive',
-      });
+      // Check if error is due to duplicate email
+      if (error.message.includes('already registered') || error.message.includes('already been registered')) {
+        toast({
+          title: 'Email Already Registered',
+          description: 'This email is already registered. Please sign in or use a different email.',
+          variant: 'destructive',
+        });
+      } else {
+        toast({
+          title: 'Error',
+          description: error.message,
+          variant: 'destructive',
+        });
+      }
     } else {
       toast({
         title: 'Success',
@@ -241,14 +303,16 @@ const Auth = () => {
           </CardHeader>
         
         <CardContent>
-          <Tabs defaultValue="signin">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="signin">Sign In</TabsTrigger>
-              <TabsTrigger value="signup">Sign Up</TabsTrigger>
-            </TabsList>
-            
-            <TabsContent value="signin">
-              <form onSubmit={handleSignIn} className="space-y-4">
+          <AnimatePresence mode="wait">
+            {!isSignUp ? (
+              <motion.div
+                key="signin"
+                initial={{ rotateY: 90, opacity: 0 }}
+                animate={{ rotateY: 0, opacity: 1 }}
+                exit={{ rotateY: -90, opacity: 0 }}
+                transition={{ duration: 0.5 }}
+              >
+                <form onSubmit={handleSignIn} className="space-y-4">
                 <AnimatedInput
                   id="signin-email"
                   name="email"
@@ -356,11 +420,28 @@ const Auth = () => {
                   </svg>
                   {loading ? 'Signing in...' : 'Continue with Google'}
                 </AnimatedButton>
+                <div className="mt-4 text-center text-sm">
+                  <span className="text-muted-foreground">Don't have an account? </span>
+                  <Button
+                    type="button"
+                    variant="link"
+                    className="px-1 font-semibold"
+                    onClick={() => setIsSignUp(true)}
+                  >
+                    Sign Up
+                  </Button>
+                </div>
               </form>
-            </TabsContent>
-            
-            <TabsContent value="signup">
-              <form onSubmit={handleSignUp} className="space-y-4">
+              </motion.div>
+            ) : (
+              <motion.div
+                key="signup"
+                initial={{ rotateY: 90, opacity: 0 }}
+                animate={{ rotateY: 0, opacity: 1 }}
+                exit={{ rotateY: -90, opacity: 0 }}
+                transition={{ duration: 0.5 }}
+              >
+                <form onSubmit={handleSignUp} className="space-y-4">
                 <AnimatedInput
                   id="signup-fullname"
                   name="fullName"
@@ -383,15 +464,49 @@ const Auth = () => {
                 />
                 <p className="text-xs text-black ml-1">Only Gmail addresses are accepted</p>
                 
-                <AnimatedInput
-                  id="signup-password"
-                  name="password"
-                  type="password"
-                  placeholder="Create a password"
-                  label="Password"
-                  delay={0.6}
-                  required
-                />
+                <div>
+                  <AnimatedInput
+                    id="signup-password"
+                    name="password"
+                    type="password"
+                    placeholder="Create a password"
+                    label="Password"
+                    delay={0.6}
+                    value={password}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                      setPassword(e.target.value);
+                      if (e.target.value.length > 0) setShowPasswordHints(true);
+                    }}
+                    required
+                  />
+                  {showPasswordHints && (
+                  <div className="mt-2 space-y-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-muted-foreground">Password Strength:</span>
+                      <span className={`text-xs font-semibold ${getPasswordStrength(password).color}`}>
+                        {getPasswordStrength(password).label}
+                      </span>
+                    </div>
+                    <div className="space-y-1 text-xs">
+                    <p className={password.length >= 8 ? 'text-green-600' : 'text-muted-foreground'}>
+                      ✓ At least 8 characters
+                    </p>
+                    <p className={/[A-Z]/.test(password) ? 'text-green-600' : 'text-muted-foreground'}>
+                      ✓ One uppercase letter
+                    </p>
+                    <p className={/[a-z]/.test(password) ? 'text-green-600' : 'text-muted-foreground'}>
+                      ✓ One lowercase letter
+                    </p>
+                    <p className={/[0-9]/.test(password) ? 'text-green-600' : 'text-muted-foreground'}>
+                      ✓ One number
+                    </p>
+                    <p className={/[!@#$%^&*(),.?":{}|<>]/.test(password) ? 'text-green-600' : 'text-muted-foreground'}>
+                      ✓ One special character (!@#$%^&*...)
+                    </p>
+                    </div>
+                  </div>
+                  )}
+                </div>
                 
                 <AnimatedButton 
                   type="submit" 
@@ -401,10 +516,23 @@ const Auth = () => {
                 >
                   {loading ? 'Creating account...' : 'Create Account'}
                 </AnimatedButton>
+                
+                <div className="mt-4 text-center text-sm">
+                  <span className="text-muted-foreground">Already have an account? </span>
+                  <Button
+                    type="button"
+                    variant="link"
+                    className="px-1 font-semibold"
+                    onClick={() => setIsSignUp(false)}
+                  >
+                    Sign In
+                  </Button>
+                </div>
               </form>
-            </TabsContent>
-          </Tabs>
-          </CardContent>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </CardContent>
         </Card>
       </AnimatedCard>
     </div>
